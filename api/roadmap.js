@@ -2,15 +2,23 @@ import { GoogleGenAI } from "@google/genai";
 
 export default async function handler(req, res) {
   // Initialize the SDK inside the handler to ensure env vars are available
+  console.log('Environment variables check:', {
+    hasGeminiKey: !!process.env.GEMINI_API_KEY,
+    hasApiKey: !!process.env.API_KEY,
+    allEnvKeys: Object.keys(process.env).filter(k => k.includes('KEY') || k.includes('GEMINI'))
+  });
+  
   const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
   
   if (!apiKey) {
+    console.error('No API key found in environment variables');
     return res.status(500).json({ 
       error: "Server configuration error", 
-      details: "API key not configured. Please set GEMINI_API_KEY or API_KEY environment variable." 
+      details: "API key not configured. Please set GEMINI_API_KEY or API_KEY environment variable in Vercel project settings." 
     });
   }
   
+  console.log('API key found, initializing GoogleGenAI...');
   const ai = new GoogleGenAI({ apiKey });
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
