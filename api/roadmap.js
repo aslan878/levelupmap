@@ -114,8 +114,8 @@ RESOURCE QUALITY GUIDELINES:
 Make the roadmap practical, actionable, and comprehensive enough to truly master the skill.
 Make sure all quotes are properly closed and JSON is valid!`;
 
-    // Try different model names
-    let modelName = "gemini-2.0-flash-exp";
+    // Try different model names - using correct identifiers for v1beta API
+    let modelName = "gemini-1.5-flash-latest";
     let result;
     
     try {
@@ -125,16 +125,20 @@ Make sure all quotes are properly closed and JSON is valid!`;
         contents: [{ role: "user", parts: [{ text: prompt }] }]
       });
     } catch (modelError) {
-      console.warn(`${modelName} failed, trying gemini-1.5-flash:`, modelError.message);
-      modelName = "gemini-1.5-flash";
+      console.warn(`${modelName} failed, trying gemini-1.5-pro-latest:`, modelError.message);
+      modelName = "gemini-1.5-pro-latest";
       try {
         result = await client.models.generateContent({
           model: modelName,
           contents: [{ role: "user", parts: [{ text: prompt }] }]
         });
       } catch (fallbackError) {
-        console.error('Both models failed:', fallbackError);
-        throw fallbackError;
+        console.warn(`${modelName} failed, trying gemini-pro:`, fallbackError.message);
+        modelName = "gemini-pro";
+        result = await client.models.generateContent({
+          model: modelName,
+          contents: [{ role: "user", parts: [{ text: prompt }] }]
+        });
       }
     }
 
