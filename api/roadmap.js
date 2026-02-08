@@ -1,9 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize the new unified SDK
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY });
-
 export default async function handler(req, res) {
+  // Initialize the SDK inside the handler to ensure env vars are available
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  
+  if (!apiKey) {
+    return res.status(500).json({ 
+      error: "Server configuration error", 
+      details: "API key not configured. Please set GEMINI_API_KEY or API_KEY environment variable." 
+    });
+  }
+  
+  const ai = new GoogleGenAI({ apiKey });
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
