@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   }
   
   console.log('API key found, initializing GoogleGenAI...');
-  const ai = new GoogleGenAI({ apiKey });
+  
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -45,6 +45,8 @@ export default async function handler(req, res) {
   }
 
   try {
+    const client = new GoogleGenAI({ apiKey });
+    
     const prompt = `Create a comprehensive and detailed roadmap for achieving the goal: ${goal}
 
 CRITICAL INSTRUCTION: You MUST respond in the SAME LANGUAGE as the user's goal above. If the goal is in Russian, respond in Russian. If in English, respond in English. Match the user's language exactly.
@@ -112,28 +114,47 @@ RESOURCE QUALITY GUIDELINES:
 Make the roadmap practical, actionable, and comprehensive enough to truly master the skill.
 Make sure all quotes are properly closed and JSON is valid!`;
 
-    // Use the new SDK API to generate content
-    let modelName = "gemini-2.0-flash";
+    // Try different model names
+    let modelName = "gemini-2.0-flash-exp";
     let result;
     
     try {
-      result = await ai.models.generateContent({
+      console.log(`Attempting to generate content with model: ${modelName}`);
+      result = await client.models.generateContent({
         model: modelName,
-        contents: prompt,
+        contents: [{ role: "user", parts: [{ text: prompt }] }]
       });
     } catch (modelError) {
-      console.warn(`${modelName} not available, falling back to gemini-1.5-flash`);
+      console.warn(`${modelName} failed, trying gemini-1.5-flash:`, modelError.message);
       modelName = "gemini-1.5-flash";
-      result = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-      });
+      try {
+        result = await client.models.generateContent({
+          model: modelName,
+          contents: [{ role: "user", parts: [{ text: prompt }] }]
+        });
+      } catch (fallbackError) {
+        console.error('Both models failed:', fallbackError);
+        throw fallbackError;
+      }
     }
 
-    let roadmapText = result.text;
+    console.log('Generation successful, extracting text...');
+    
+    // Extract text from response
+    let roadmapText;
+    if (result.text) {
+      roadmapText = result.text;
+    } else if (result.response?.text) {
+      roadmapText = result.response.text;
+    } else if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+      roadmapText = result.candidates[0].content.parts[0].text;
+    } else {
+      console.error('Unexpected response structure:', JSON.stringify(result, null, 2));
+      throw new Error('Could not extract text from AI response');
+    }
 
     if (!roadmapText) {
-      return res.status(500).json({ error: "Failed to generate roadmap" });
+      return res.status(500).json({ error: "Failed to generate roadmap - empty response" });
     }
 
     // Clean up markdown code blocks if present
@@ -142,7 +163,11 @@ Make sure all quotes are properly closed and JSON is valid!`;
     const roadmapJson = JSON.parse(roadmapText);
     return res.status(200).json(roadmapJson);
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error details:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
 
     if (error.status === 429 || (error.message && error.message.includes("429"))) {
       return res.status(429).json({
@@ -151,6 +176,10 @@ Make sure all quotes are properly closed and JSON is valid!`;
       });
     }
 
-    return res.status(500).json({ error: "Internal Server Error", details: error.message });
+    return res.status(500).json({ 
+      error: "Internal Server Error", 
+      details: error.message,
+      type: error.name
+    });
   }
 }
